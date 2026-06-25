@@ -237,7 +237,7 @@ const MOTOR_LABEL = {
 const PIBO_MAP = [
   {j:'ankle_r_joint',    s: 1},  // M0 Right Foot ±25
   {j:'hip_r_joint',      s: 1},  // M1 Right Leg  ±35
-  {j:'shoulder_r_joint', s:-1},  // M2 Right Arm  ±80
+  {j:'shoulder_r_joint', s: 1},  // M2 Right Arm  ±80
   {j:'elbow_r_joint',    s: 1},  // M3 Right Hand ±30
   {j:'head_pan_joint',   s: 1},  // M4 Head Pan   ±50
   {j:'head_tilt_joint',  s: 1},  // M5 Head Tilt  ±25
@@ -645,7 +645,7 @@ function addKeyframe(){
     existing.joints=getCurrentPose();
     selectedKfId=existing.id;
   } else {
-    const kf={id:kfIdCounter++,time:parseFloat(currentTime.toFixed(3)),joints:getCurrentPose()};
+    const kf={id:kfIdCounter++,time:Math.round(currentTime/0.5)*0.5,joints:getCurrentPose()};
     keyframes.push(kf);selectedKfId=kf.id;
   }
   updateKfCount();
@@ -665,7 +665,7 @@ const tlWrap=document.getElementById('tlWrap');
 function resizeTlCanvas(){tlCanvas.width=tlWrap.clientWidth;tlCanvas.height=tlWrap.clientHeight;}
 resizeTlCanvas();new ResizeObserver(resizeTlCanvas).observe(tlWrap);
 function timeToX(t){return Math.round((t/duration)*tlCanvas.width);}
-function xToTime(x){return Math.max(0,Math.min(duration,(x/tlCanvas.width)*duration));}
+function xToTime(x){let t=(x/tlCanvas.width)*duration; t=Math.round(t/0.5)*0.5; return Math.max(0,Math.min(duration,t));}
 function drawTimeline(){
   const canvas=tlCanvas,ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height;
