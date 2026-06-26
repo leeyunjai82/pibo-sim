@@ -68,8 +68,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;heigh
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script type="module">
-import RAPIER from 'https://esm.sh/@dimforge/rapier3d-compat@0.12.2';
-
 // ───────── 설정 ─────────
 const DATA_DIR='data/', URDF_NAMES=['pibo.urdf'];
 const DENSITY=140;          // 셸 밀도(kg/m³) — 전체 질량 튜닝
@@ -144,7 +142,21 @@ let world=null, RAPIER_READY=false, robot=null, motion=null, playing=false, grav
 let urdfTxt=null, stlMap={}, target={}; // jointName -> target angle(rad)
 const clock={last:performance.now(),fps:0,t:performance.now()};
 
-await RAPIER.init();RAPIER_READY=true;document.getElementById('ov').style.display='none';
+let RAPIER=null;
+const CDNS=[
+  'https://esm.sh/@dimforge/rapier3d-compat@0.12.2',
+  'https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.12.2/+esm',
+  'https://unpkg.com/@dimforge/rapier3d-compat@0.12.2/rapier.es.js'
+];
+const ovEl=document.getElementById('ov');
+for(const url of CDNS){
+  try{ ovEl.textContent='물리엔진 로딩: '+url.split('/')[2]+' ...';
+    const mod=await import(url); RAPIER=mod.default||mod;
+    await RAPIER.init(); break;
+  }catch(e){ console.warn('CDN 실패',url,e); RAPIER=null; }
+}
+if(!RAPIER){ ovEl.textContent='물리엔진 로딩 실패 — http로 열었는지/네트워크(CDN 차단) 확인. F12 콘솔 참고.'; throw new Error('RAPIER load failed'); }
+RAPIER_READY=true; ovEl.style.display='none';
 document.getElementById('badge').textContent='Rapier 준비';
 
 // ───────── data/ 로드 ─────────
