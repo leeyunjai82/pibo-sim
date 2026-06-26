@@ -122,14 +122,6 @@ input[type=range]:hover::-webkit-slider-thumb,input[type=range]:focus::-webkit-s
 <div class="main">
   <div class="left">
     <div class="sec">
-      <div class="sec-title">파일 업로드 (Upload)</div>
-      <label class="upload-zone" id="urdfLbl" for="urdfIn">&#x1F4C4; URDF 파일 선택 (Select URDF)</label>
-      <input type="file" id="urdfIn" accept=".urdf,.xml">
-      <label class="upload-zone" id="stlLbl" for="stlIn">&#x1F4E6; STL 다중 선택 (Select STLs)</label>
-      <input type="file" id="stlIn" accept=".stl,.STL" multiple>
-      <button class="btn-load" id="loadBtn" disabled>&#x25B6; 로드 (Load)</button>
-    </div>
-    <div class="sec">
       <div class="sec-title">뷰 (View)</div>
       <button class="tb on" id="gridBtn"><span class="ic">&#x22DE;</span>그리드 (Grid)</button>
       <button class="tb" id="wireBtn"><span class="ic">&#x25A6;</span>와이어프레임 (Wireframe)</button>
@@ -147,7 +139,7 @@ input[type=range]:hover::-webkit-slider-thumb,input[type=range]:focus::-webkit-s
     </div>
     <div class="sec">
       <div class="sec-title">LCD 텍스트 (Screen)</div>
-      <input type="text" id="lcdText" placeholder="가슴 화면에 표시" style="width:100%;padding:6px 8px;background:var(--panel2);border:1px solid var(--line-soft);border-radius:2px;font-size:11px;color:var(--ink);outline:none;font-family:var(--mono);margin-bottom:5px">
+      <input type="text" id="lcdText" placeholder="Hi, pibo" style="width:100%;padding:6px 8px;background:var(--panel2);border:1px solid var(--line-soft);border-radius:2px;font-size:11px;color:var(--ink);outline:none;font-family:var(--mono);margin-bottom:5px">
       <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink3)"><span>글씨색</span><input type="color" id="lcdColor" value="#ffffff" style="flex:1;height:26px;border:1px solid var(--line-soft);border-radius:2px;background:var(--panel2);cursor:pointer;padding:2px"></div>
     </div>
     <div class="sec">
@@ -431,17 +423,13 @@ requestAnimationFrame(renderLoop);
 
 // FILE UPLOAD
 let urdfFile=null,stlFiles=[];
-document.getElementById('urdfIn').addEventListener('change',e=>{urdfFile=e.target.files[0];if(urdfFile){document.getElementById('urdfLbl').textContent='✅ '+urdfFile.name;document.getElementById('urdfLbl').className='upload-zone done';}chk();});
-document.getElementById('stlIn').addEventListener('change',e=>{stlFiles=Array.from(e.target.files);if(stlFiles.length){document.getElementById('stlLbl').textContent='✅ '+stlFiles.length+'개 STL files';document.getElementById('stlLbl').className='upload-zone done';}chk();});
-function chk(){document.getElementById('loadBtn').disabled=!(urdfFile&&stlFiles.length);}
-document.getElementById('loadBtn').addEventListener('click',loadRobot);
 
 // data/ 에서 URDF+STL 직접 fetch (업로드 없이)
 async function autoLoadFromData(){
   const ov=document.getElementById('loadOv'), title=document.getElementById('loadTitle');
   const ptext=document.getElementById('ptext'), pbar=document.getElementById('pbar'), spin=document.getElementById('spinner');
   const fail=(msg)=>{ spin.style.display='none'; title.textContent='자동 로드 실패 (Auto-load failed)';
-    ptext.innerHTML=msg+'<br><span style="color:#B0B7BE">왼쪽에서 직접 업로드하거나 새로고침하세요</span>';
+    ptext.innerHTML=msg+'<br><span style="color:#B0B7BE">data/ 경로·네트워크 확인 후 새로고침하세요</span>';
     setTimeout(()=>{ ov.style.display='none'; document.getElementById('emptyMsg').style.display='flex'; }, 4000); };
   // 오버레이 켜기
   document.getElementById('emptyMsg').style.display='none';
@@ -471,17 +459,13 @@ async function autoLoadFromData(){
 
   urdfFile=new File([urdfTxt], urdfName);
   stlFiles=files;
-  document.getElementById('urdfLbl').textContent='✅ '+urdfName+' (data/)';
-  document.getElementById('urdfLbl').className='upload-zone done';
-  document.getElementById('stlLbl').textContent='✅ '+files.length+'개 STL (data/)';
-  document.getElementById('stlLbl').className='upload-zone done';
   ptext.textContent='모델 구성 중...';
   await loadRobot();   // loadRobot이 오버레이를 닫음
 }
 
 // LOAD ROBOT
 async function loadRobot(){
-  document.getElementById('loadBtn').disabled=true;
+  const _lb=document.getElementById('loadBtn'); if(_lb)_lb.disabled=true;
   document.getElementById('loadOv').style.display='flex';
   document.getElementById('emptyMsg').style.display='none';
   isPlaying=false;
@@ -561,7 +545,7 @@ async function loadRobot(){
     const b=document.getElementById('statusBadge');b.textContent='로드 완료 (Done)';b.className='badge ok';
   }catch(e){console.error(e);alert('오류 (Error): '+e.message);}
   document.getElementById('loadOv').style.display='none';
-  document.getElementById('loadBtn').disabled=false;
+  if(_lb)_lb.disabled=false;
 }
 
 // JOINT SLIDERS
@@ -880,28 +864,33 @@ cv.addEventListener('click',e=>{
 // LCD 화면 (가슴 torso_lcd 표면에 캔버스 텍스처)
 function setupLCD(){
   lcdDraw=null;
-  if(!lcdMesh){return;}
-  lcdMesh.geometry.computeBoundingBox();
-  const bb=lcdMesh.geometry.boundingBox.clone();
-  lcdMesh.updateMatrix(); bb.applyMatrix4(lcdMesh.matrix); // 그룹 로컬 박스
-  const sx=bb.max.x-bb.min.x, sz=bb.max.z-bb.min.z;
-  const cx=(bb.max.x+bb.min.x)/2, cz=(bb.max.z+bb.min.z)/2, fy=bb.min.y; // 앞면 = -Y(최소)
-  const cvs=document.createElement('canvas'); cvs.width=512; cvs.height=Math.max(80,Math.round(512*sz/sx));
+  if(!lcdMesh)return;
+  const geo=lcdMesh.geometry; geo.computeBoundingBox();
+  const bb=geo.boundingBox; const minX=bb.min.x,maxX=bb.max.x,minZ=bb.min.z,maxZ=bb.max.z;
+  const rx=(maxX-minX)||1, rz=(maxZ-minZ)||1;
+  // X-Z 평면 투영 UV → LCD 실제 표면에 매핑
+  const pos=geo.attributes.position; const uv=new Float32Array(pos.count*2);
+  for(let i=0;i<pos.count;i++){
+    uv[i*2]   = 1-(pos.getX(i)-minX)/rx;   // u (좌우 뒤집히면 1- 빼기)
+    uv[i*2+1] = (pos.getZ(i)-minZ)/rz;     // v (상하)
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv,2));
+  const cvs=document.createElement('canvas'); cvs.width=512; cvs.height=Math.max(64,Math.round(512*rz/rx));
   const ctx=cvs.getContext('2d');
   const tex=new THREE.CanvasTexture(cvs); tex.anisotropy=4;
   lcdDraw=function(txt){
-    ctx.fillStyle='#0a0e0a'; ctx.fillRect(0,0,cvs.width,cvs.height);
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,cvs.width,cvs.height);
     ctx.fillStyle=lcdTextColor; ctx.textAlign='center'; ctx.textBaseline='middle';
-    const t=txt||''; let fs=cvs.height*0.7;
-    ctx.font='bold '+fs+'px monospace';
-    while(ctx.measureText(t).width>cvs.width*0.9 && fs>16){ fs-=4; ctx.font='bold '+fs+'px monospace'; }
+    const t=txt||''; let fs=cvs.height*0.6; ctx.font='bold '+fs+'px sans-serif';
+    while(t && ctx.measureText(t).width>cvs.width*0.9 && fs>14){ fs-=3; ctx.font='bold '+fs+'px sans-serif'; }
     ctx.fillText(t, cvs.width/2, cvs.height/2);
     tex.needsUpdate=true;
   };
-  const plane=new THREE.Mesh(new THREE.PlaneGeometry(sx*0.95,sz*0.88), new THREE.MeshBasicMaterial({map:tex}));
-  plane.rotation.x=Math.PI/2;                 // 앞면(-Y) 향하게
-  plane.position.set(cx, fy-0.0008, cz);
-  lcdMesh.parent.add(plane);
+  // 화면처럼 자체발광 (조명 영향 없이 또렷)
+  lcdMesh.material.color.set(0x000000);
+  lcdMesh.material.emissive=new THREE.Color(0xffffff);
+  lcdMesh.material.emissiveMap=tex;
+  lcdMesh.material.needsUpdate=true;
   lcdDraw(document.getElementById('lcdText').value||'');
 }
 document.getElementById('lcdText').addEventListener('input',function(){ if(lcdDraw) lcdDraw(this.value); });
