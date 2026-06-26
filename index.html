@@ -71,7 +71,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;heigh
 // ───────── 설정 ─────────
 const DATA_DIR='data/', URDF_NAMES=['pibo.urdf'];
 const DENSITY=140;          // 셸 밀도(kg/m³) — 전체 질량 튜닝
-const MOTOR_STIFF=18, MOTOR_DAMP=2.2;   // 서보 강성/감쇠
+const MOTOR_STIFF=120, MOTOR_DAMP=12;   // 서보 강성/감쇠 (셀수록 단단)
 const GROUND_FRICTION=1.1;
 // 모터 M0..M9 → joint + 부호 + 슬라이더 0일때 오프셋(rad)
 const PIBO_MAP=[
