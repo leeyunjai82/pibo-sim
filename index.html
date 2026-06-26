@@ -145,6 +145,15 @@ input[type=range]:hover::-webkit-slider-thumb,input[type=range]:focus::-webkit-s
       </div>
       <input type="file" id="poseFileIn" accept=".json">
     </div>
+    <div class="sec">
+      <div class="sec-title">LCD 텍스트 (Screen)</div>
+      <input type="text" id="lcdText" placeholder="가슴 화면에 표시" style="width:100%;padding:6px 8px;background:var(--panel2);border:1px solid var(--line-soft);border-radius:2px;font-size:11px;color:var(--ink);outline:none;font-family:var(--mono);margin-bottom:5px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink3)"><span>글씨색</span><input type="color" id="lcdColor" value="#ffffff" style="flex:1;height:26px;border:1px solid var(--line-soft);border-radius:2px;background:var(--panel2);cursor:pointer;padding:2px"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">안경 색상 (Glasses)</div>
+      <input type="color" id="glassColor" value="#8c8c91" style="width:100%;height:30px;border:1px solid var(--line-soft);border-radius:2px;background:var(--panel2);cursor:pointer;padding:2px">
+    </div>
     <div class="sec" id="infoSec" style="display:none">
       <div class="sec-title">모델 정보 (Info)</div>
       <div id="infoRows"></div>
@@ -383,6 +392,7 @@ resize();new ResizeObserver(resize).observe(vp);
 let robotRoot=null,jointObjs={},baseQs={},basePs={},jointDefs={};
 let allMeshes=[],allAxes=[],wireMode=false,axisMode=false;
 let selectedMesh=null,selectedOrigColor=null;
+let lcdMesh=null,lcdDraw=null,glassesMesh=null,lcdTextColor='#ffffff';
 let sliderEls={},valEls={};
 
 // TIMELINE STATE
@@ -477,7 +487,7 @@ async function loadRobot(){
   isPlaying=false;
   try{
     if(robotRoot){scene.remove(robotRoot);robotRoot=null;}
-    jointObjs={};baseQs={};basePs={};allMeshes=[];allAxes=[];sliderEls={};valEls={};
+    jointObjs={};baseQs={};basePs={};allMeshes=[];allAxes=[];sliderEls={};valEls={};lcdMesh=null;lcdDraw=null;glassesMesh=null;
 
     const urdfTxt=await readText(urdfFile);
     const{links,joints}=parseURDF(urdfTxt);
@@ -517,6 +527,8 @@ async function loadRobot(){
         const col=v.rgba?new THREE.Color(v.rgba[0],v.rgba[1],v.rgba[2]).getHex():getColor(lname);
         const mat=new THREE.MeshPhongMaterial({color:col,specular:0x111122,shininess:28});
         const mesh=new THREE.Mesh(geo,mat);mesh.userData={linkName:lname};
+        if(b.includes('torso_lcd'))lcdMesh=mesh;
+        if(b.includes('head_glasses'))glassesMesh=mesh;
         mesh.position.set(...v.origin.xyz);mesh.setRotationFromEuler(new THREE.Euler(...v.origin.rpy,'XYZ'));mesh.scale.set(...v.sc);
         allMeshes.push(mesh);grp.add(mesh);}
       const ax=new THREE.AxesHelper(.08);ax.visible=false;allAxes.push(ax);grp.add(ax);
@@ -535,6 +547,8 @@ async function loadRobot(){
       const box=new THREE.Box3().setFromObject(robotRoot);
       robotRoot.position.y=-box.min.y;
       orbit.focusBox(new THREE.Box3().setFromObject(robotRoot));
+      setupLCD();
+      if(glassesMesh)document.getElementById('glassColor').value='#'+glassesMesh.material.color.getHexString();
     }
     buildSliders(joints);
     // ★ 로드 직후 슬라이더 0 적용 → 어깨 오프셋(앞으로 나란히) 반영
@@ -862,6 +876,37 @@ cv.addEventListener('click',e=>{
   tt.style.left=(e.clientX-rect.left+10)+'px';tt.style.top=(e.clientY-rect.top+8)+'px';
   setTimeout(()=>tt.style.display='none',2000);
 });
+
+// LCD 화면 (가슴 torso_lcd 표면에 캔버스 텍스처)
+function setupLCD(){
+  lcdDraw=null;
+  if(!lcdMesh){return;}
+  lcdMesh.geometry.computeBoundingBox();
+  const bb=lcdMesh.geometry.boundingBox.clone();
+  lcdMesh.updateMatrix(); bb.applyMatrix4(lcdMesh.matrix); // 그룹 로컬 박스
+  const sx=bb.max.x-bb.min.x, sz=bb.max.z-bb.min.z;
+  const cx=(bb.max.x+bb.min.x)/2, cz=(bb.max.z+bb.min.z)/2, fy=bb.min.y; // 앞면 = -Y(최소)
+  const cvs=document.createElement('canvas'); cvs.width=512; cvs.height=Math.max(80,Math.round(512*sz/sx));
+  const ctx=cvs.getContext('2d');
+  const tex=new THREE.CanvasTexture(cvs); tex.anisotropy=4;
+  lcdDraw=function(txt){
+    ctx.fillStyle='#0a0e0a'; ctx.fillRect(0,0,cvs.width,cvs.height);
+    ctx.fillStyle=lcdTextColor; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const t=txt||''; let fs=cvs.height*0.7;
+    ctx.font='bold '+fs+'px monospace';
+    while(ctx.measureText(t).width>cvs.width*0.9 && fs>16){ fs-=4; ctx.font='bold '+fs+'px monospace'; }
+    ctx.fillText(t, cvs.width/2, cvs.height/2);
+    tex.needsUpdate=true;
+  };
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(sx*0.95,sz*0.88), new THREE.MeshBasicMaterial({map:tex}));
+  plane.rotation.x=Math.PI/2;                 // 앞면(-Y) 향하게
+  plane.position.set(cx, fy-0.0008, cz);
+  lcdMesh.parent.add(plane);
+  lcdDraw(document.getElementById('lcdText').value||'');
+}
+document.getElementById('lcdText').addEventListener('input',function(){ if(lcdDraw) lcdDraw(this.value); });
+document.getElementById('glassColor').addEventListener('input',function(){ if(glassesMesh) glassesMesh.material.color.set(this.value); });
+document.getElementById('lcdColor').addEventListener('input',function(){ lcdTextColor=this.value; if(lcdDraw) lcdDraw(document.getElementById('lcdText').value); });
 
 // UTILS
 function readText(f){return new Promise((r,j)=>{const fr=new FileReader();fr.onload=e=>r(e.target.result);fr.onerror=j;fr.readAsText(f);});}
